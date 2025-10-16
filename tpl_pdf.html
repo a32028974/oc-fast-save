@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    td, th { border: 1px solid #ccc; padding: 6px; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>Óptica Cristal – Entrega Nº <?= data.job ?></h1>
+  <div>Fecha: <?= data.fecha ?></div>
+
+  <table>
+    <tr><th>Paciente</th><td><?= data.row['APELLIDO Y NOMBRE'] ?></td></tr>
+    <tr><th>Documento</th><td><?= data.row['DOCUMENTO'] ?></td></tr>
+    <tr><th>Teléfono</th><td><?= data.row['TELEFONO'] ?></td></tr>
+    <tr><th>Localidad</th><td><?= data.row['LOCALIDAD'] ?></td></tr>
+    <tr><th>Cristal</th><td><?= data.row['CRISTAL'] ?></td></tr>
+    <tr><th>Armazón</th><td><?= data.row['DETALLE ARMAZON'] ?></td></tr>
+    <tr><th>Nº Armazón</th><td><?= data.row['N ANTEOJO'] ?></td></tr>
+    <tr><th>Total</th><td>$ <?= data.row['TOTAL'] ?></td></tr>
+    <tr><th>Seña</th><td>$ <?= data.row['SEÑA'] ?></td></tr>
+    <tr><th>Saldo</th><td>$ <?= data.row['SALDO'] ?></td></tr>
+  </table>
+
+  <p>Entregado por: <?= data.row['ENTREGADO POR'] || '' ?></p>
+</body>
+</html>
