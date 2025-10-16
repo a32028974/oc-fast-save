@@ -1,145 +1,149 @@
-// /js/fastsave.js — v2025-10-16
-// Integra "Guardado rápido" y "Entregar (PDF)" en tu página actual.
+// /js/fastsave.js — v2025-10-16a (para v05 Óptica Cristal)
+// Guarda RÁPIDO (solo Sheet) y Entrega (genera PDF) usando tu WebApp nueva.
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwVmlfFxAycG_TBSGGdgmPafrdz1a5nemrGL2CJ-Tlcl4ZOiH96CLlkp-qsm5X8MXCO9g/exec';
 
-/* ========== CONFIG: mapeo de SELECTORES a tus campos ==========
-   Ajustá solo si tus IDs difieren. Si un selector no existe, se ignora.
-*/
+// === Selectores de TU v05 (IDs reales de tu HTML) ===
 const SEL = {
-  nroTrabajo:     '#nro_trabajo, #nTrabajo, #numTrabajo, #nro',   // Nº trabajo
-  dni:            '#dni',
-  nombre:         '#nombre, #apellidoNombre, #apellidonombre',
-  telefono:       '#telefono',
-  localidad:      '#localidad',
-  tipoCristal:    '#tipo_cristal, #tipoCristal',
-  precioCristal:  '#precio_cristal, #precioCristal',
-  conceptoNeg:    '#concepto_negativo, #conceptoNegativo',
-  descuento:      '#descuento',
-  odEsf:          '#od_esf, #odESF',   odCil: '#od_cil, #odCIL',   odEje: '#od_eje, #odEJE',
-  oiEsf:          '#oi_esf, #oiESF',   oiCil: '#oi_cil, #oiCIL',   oiEje: '#oi_eje, #oiEJE',
-  dnp:            '#dnp',
-  add:            '#add',
-  otroConcepto:   '#otro_concepto, #otroConcepto',
-  precioOtro:     '#precio_otro, #precioOtro',
-  vendedor:       '#vendedor',
-  formaPago:      '#forma_pago, #formaPago',
-  nArmazon:       '#n_armazon, #nroArmazon, #numArmazon',
-  detArmazon:     '#detalle_armazon, #detalleArmazon, #marcaModelo',
-  precioArmazon:  '#precio_armazon, #precioArmazon',
-  // foto receta (input file). Si no existe, lo salta.
-  fotoInput:      '#fotoReceta, input[type="file"][name="foto"], input[type="file"]',
-  // BOTONES (podés apuntarlos a los que ya tenés)
-  btnGuardar:     '#btnGuardarRapido',
-  btnEntregar:    '#btnEntregar'
+  nro:              '#numero_trabajo',
+  dni:              '#dni',
+  nombre:           '#nombre',
+  telefono:         '#telefono',
+  localidad:        '#localidad',
+  cristal:          '#cristal',
+  precioCristal:    '#precio_cristal',
+  conceptoNeg:      '#obra_social',
+  descuento:        '#importe_obra_social',
+  od_esf:           '#od_esf', od_cil:'#od_cil', od_eje:'#od_eje',
+  dist_focal:       '#distancia_focal',
+  oi_esf:           '#oi_esf', oi_cil:'#oi_cil', oi_eje:'#oi_eje',
+  dr:               '#dr', dnp:'#dnp', add:'#add',
+  otro:             '#otro_concepto',
+  precioOtro:       '#precio_otro',
+  vendedor:         '#vendedor',
+  formaPago:        '#forma_pago',
+  nArmazon:         '#numero_armazon',
+  detArmazon:       '#armazon_detalle',
+  precioArmazon:    '#precio_armazon',
+  total:            '#total', sena:'#sena', saldo:'#saldo',
+  // botones nuevos:
+  btnGuardar:       '#btnGuardarRapido',
+  btnEntregar:      '#btnEntregar',
+  // mensaje de estado
+  msg:              '#fastsave_msg'
 };
 
-// Helpers DOM
-const $  = (sel) => document.querySelector(sel);
-const V  = (sel) => { const el = $(sel); return (el ? (el.value ?? el.textContent ?? '') : '').toString().trim(); };
-const up = (s)   => (s ?? '').toString().trim().toUpperCase();
-const setMsg = (txt, ok=true) => {
-  let n = $('#fastsave_msg'); 
-  if (!n) {
-    n = document.createElement('div');
-    n.id = 'fastsave_msg';
-    n.style.marginTop = '10px';
-    n.style.fontSize = '14px';
-    n.style.fontFamily = 'system-ui,Segoe UI,Roboto,Arial,sans-serif';
-    const cont = document.body; cont.appendChild(n);
-  }
-  n.textContent = txt;
-  n.style.color = ok ? '#36d399' : '#ff8b8b';
-};
+const $ = (s) => document.querySelector(s);
+const V = (s) => { const el = $(s); return (el ? (el.value ?? '').toString().trim() : ''); };
+const U = (v) => (v ?? '').toString().trim().toUpperCase();
 
-// Subir foto si hay input[file]; devuelve fileId o ''
-async function uploadPhotoIfAny(){
-  const inpSel = SEL.fotoInput;
-  if (!inpSel) return '';
-  const inp = $(inpSel);
-  if (!inp || !inp.files || !inp.files[0]) return '';
-  const fd = new FormData();
-  fd.append('action','upload_photo');
-  fd.append('file', inp.files[0]);
-  const r = await fetch(API_URL, { method:'POST', body: fd });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Error subiendo foto');
-  return j.fileId || '';
+function setMsg(txt, ok=true){
+  const el = $(SEL.msg); if (!el) return;
+  el.textContent = txt;
+  el.style.color = ok ? '#36d399' : '#ff8b8b';
 }
 
-// Empaquetar campos para "save"
-function buildSaveParams(fotoId=''){
+function swalOK(title, text){
+  if (window.Swal) return Swal.fire({ icon:'success', title, text, timer:1400, showConfirmButton:false });
+  setMsg(`${title} ${text||''}`, true);
+}
+function swalERR(text){
+  if (window.Swal) return Swal.fire({ icon:'error', title:'Error', text: String(text) });
+  setMsg('Error: '+String(text), false);
+}
+
+// --- Construye body para SAVE (rápido) ---
+function buildSaveParams(){
+  const nro = V(SEL.nro);
+  if (!nro) throw new Error('Falta el Nº de trabajo');
+  // Si pedís dist. focal obligatoria para guardar rápido, descomentá:
+  // if (!V(SEL.dist_focal)) throw new Error('Elegí la Distancia focal');
+
   const p = new URLSearchParams();
   p.set('action','save');
-
-  const nro = V(SEL.nroTrabajo);
-  if (!nro) throw new Error('Falta Nº de trabajo');
   p.set('nro', nro);
 
-  p.set('dni',           V(SEL.dni));
-  p.set('nombre',        up(V(SEL.nombre)));
-  p.set('cristal',       V(SEL.tipoCristal));
-  p.set('armazon',       V(SEL.detArmazon));
-  p.set('otro',          V(SEL.otroConcepto));
+  p.set('dni', V(SEL.dni));
+  p.set('nombre', U(V(SEL.nombre)));
+  p.set('cristal', V(SEL.cristal));
+  p.set('armazon', V(SEL.detArmazon));
+  p.set('otro', V(SEL.otro));
 
-  // Datos optométricos (si existen)
-  const opto = {
-    od_esf: V(SEL.odEsf), od_cil: V(SEL.odCil), od_eje: V(SEL.odEje),
-    oi_esf: V(SEL.oiEsf), oi_cil: V(SEL.oiCil), oi_eje: V(SEL.oiEje),
-    dnp: V(SEL.dnp), add: V(SEL.add),
-    telefono: V(SEL.telefono), localidad: V(SEL.localidad),
-    conceptoNeg: V(SEL.conceptoNeg), descuento: V(SEL.descuento),
-    precioCristal: V(SEL.precioCristal), precioOtro: V(SEL.precioOtro),
-    nArmazon: V(SEL.nArmazon), precioArmazon: V(SEL.precioArmazon),
-    vendedor: V(SEL.vendedor), formaPago: V(SEL.formaPago)
+  // Si querés enviar TODO para tener respaldo, lo metemos en "extra" (columna opcional):
+  const extra = {
+    telefono: V(SEL.telefono),
+    localidad: V(SEL.localidad),
+    precioCristal: V(SEL.precioCristal),
+    conceptoNeg: V(SEL.conceptoNeg),
+    descuento: V(SEL.descuento),
+    od: { esf: V(SEL.od_esf), cil: V(SEL.od_cil), eje: V(SEL.od_eje) },
+    oi: { esf: V(SEL.oi_esf), cil: V(SEL.oi_cil), eje: V(SEL.oi_eje) },
+    dist_focal: V(SEL.dist_focal),
+    dr: V(SEL.dr), dnp: V(SEL.dnp), add: V(SEL.add),
+    precioOtro: V(SEL.precioOtro),
+    vendedor: V(SEL.vendedor),
+    formaPago: V(SEL.formaPago),
+    nArmazon: V(SEL.nArmazon),
+    precioArmazon: V(SEL.precioArmazon),
+    total: V(SEL.total), sena: V(SEL.sena), saldo: V(SEL.saldo)
   };
-  // Si querés que lleguen también, podés serializar este objeto como JSON en una columna
-  // o ignorarlo aquí y solo enviar lo esencial:
-  // p.set('extra', JSON.stringify(opto));
+  // Si no querés usar "extra" en el Apps Script, simplemente lo ignora.
+  p.set('extra', JSON.stringify(extra));
 
-  if (fotoId) p.set('fotoId', fotoId);
   return p;
 }
 
-// Guardado rápido
-export async function guardarRapido(){
+// --- Guardado rápido (sólo al Sheet) ---
+async function guardarRapido(){
   try{
-    setMsg('Guardando...', true);
-    const fotoId = await uploadPhotoIfAny().catch(()=> '');
-    const params = buildSaveParams(fotoId);
-    const r = await fetch(API_URL, { method:'POST', body: params });
+    setMsg('Guardando…', true);
+    const body = buildSaveParams();
+    const r = await fetch(API_URL, { method:'POST', body });
     const j = await r.json();
-    if (!j.ok) throw new Error(j.error);
-    setMsg(`Guardado rápido ✔️ Nº ${j.nro} (fila ${j.row})`, true);
+    if (!j.ok) throw new Error(j.error || 'No se pudo guardar');
+    swalOK('Guardado rápido ✔️', `Nº ${j.nro} (fila ${j.row})`);
+    setMsg('');
   }catch(err){
-    setMsg('Error: ' + (err.message || err), false);
+    swalERR(err.message || err);
   }
 }
 
-// Entregar (genera PDF)
-export async function entregar(){
+// --- Entregar: genera PDF + (opcional Telegram) ---
+async function entregar(){
   try{
-    setMsg('Generando PDF...', true);
+    const nro = V(SEL.nro);
+    if (!nro) throw new Error('Falta el Nº de trabajo');
+    // Para cerrar, sí conviene exigir dist. focal:
+    if (!V(SEL.dist_focal)) throw new Error('Elegí la Distancia focal antes de entregar');
+
+    setMsg('Generando PDF…', true);
     const p = new URLSearchParams();
-    const nro = V(SEL.nroTrabajo);
-    if (!nro) throw new Error('Falta Nº de trabajo');
     p.set('action','deliver');
     p.set('nro', nro);
-    p.set('entrega', V(SEL.vendedor) || V(SEL.formaPago) || ''); // podés cambiar qué mandás
+    p.set('entrega', V(SEL.vendedor) || '');
     p.set('forma',   V(SEL.formaPago) || '');
 
     const r = await fetch(API_URL, { method:'POST', body: p });
     const j = await r.json();
-    if (!j.ok) throw new Error(j.error);
-    setMsg('Entrega registrada ✔️ PDF: ' + (j.pdfUrl || ''), true);
-    // window.open(j.pdfUrl, '_blank'); // si querés abrirlo
+    if (!j.ok) throw new Error(j.error || 'No se pudo generar el PDF');
+
+    swalOK('Entrega registrada ✔️', 'Se generó el PDF');
+    setMsg('');
+    // Si querés abrir el PDF:
+    // if (j.pdfUrl) window.open(j.pdfUrl, '_blank');
   }catch(err){
-    setMsg('Error: ' + (err.message || err), false);
+    swalERR(err.message || err);
   }
 }
 
-// Auto-bind si existen los botones
+// --- Bind automático a tus botones ---
 function bind(){
   const b1 = $(SEL.btnGuardar);
   const b2 = $(SEL.btnEntregar);
-  if (b1 && !
+  if (b1 && !b1.__fs){ b1.addEventListener('click', guardarRapido); b1.__fs = 1; }
+  if (b2 && !b2.__fs){ b2.addEventListener('click', entregar);     b2.__fs = 1; }
+}
+document.addEventListener('DOMContentLoaded', bind);
+
+// Exponer por si querés llamar desde otros scripts
+export { guardarRapido, entregar };
