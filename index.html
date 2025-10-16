@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ingreso rápido • Óptica Cristal</title>
+<style>
+  :root { --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#9fb0d6; --accent:#7cc0ff; }
+  *{box-sizing:border-box} body{margin:0; font:16px/1.45 system-ui,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text)}
+  .wrap{max-width:720px; margin:24px auto; padding:16px}
+  .card{background:var(--card); border:1px solid #1e2a42; border-radius:14px; padding:16px; box-shadow:0 6px 22px rgba(0,0,0,.25)}
+  h1{margin:0 0 6px} .muted{color:var(--muted); margin:0 0 16px}
+  .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px}
+  .grid-1{display:grid; grid-template-columns:1fr; gap:12px}
+  label{font-size:13px; color:#b9c6e5}
+  input,select,textarea{width:100%; padding:10px 12px; border:1px solid #203050; background:#0e1627; color:var(--text); border-radius:10px}
+  input[type="file"]{padding:8px; background:transparent; border:none}
+  .row{display:flex; gap:12px; flex-wrap:wrap}
+  button{padding:12px 16px; border:1px solid #294567; background:#0f223b; color:#eaf1ff; border-radius:12px; cursor:pointer}
+  button.primary{background:#1b4a7b} button:hover{filter:brightness(1.05)}
+  .ok{color:#36d399} .err{color:#ff8b8b}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Ingreso rápido</h1>
+    <p class="muted">Guarda en el Sheet al instante (sin PDF). En la entrega se genera el PDF y Telegram.</p>
+
+    <form id="f" onsubmit="return false;">
+      <div class="grid">
+        <div>
+          <label>Nº de trabajo</label>
+          <input id="nro" placeholder="100123" required />
+        </div>
+        <div>
+          <label>DNI</label>
+          <input id="dni" inputmode="numeric" />
+        </div>
+        <div>
+          <label>Nombre y apellido</label>
+          <input id="nombre" />
+        </div>
+        <div>
+          <label>Armazón (detalle)</label>
+          <input id="armazon" placeholder="RB 5121 2012 52-18" />
+        </div>
+        <div>
+          <label>Cristal</label>
+          <input id="cristal" placeholder="POLI 1.56 BLU..." />
+        </div>
+        <div>
+          <label>Otro concepto</label>
+          <input id="otro" placeholder="Estuche / ajuste..." />
+        </div>
+      </div>
+
+      <div class="grid-1" style="margin-top:12px">
+        <div>
+          <label>Foto receta (opcional)</label>
+          <input type="file" id="fotoReceta" accept="image/*" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:16px">
+        <button class="primary" onclick="guardarRapido()">Guardar rápido</button>
+        <button onclick="buscar()">Buscar por Nº</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #22334f; margin:18px 0">
+
+      <div class="grid">
+        <div>
+          <label>Quién entrega (para cierre)</label>
+          <input id="quien" placeholder="Juan / Jimena / Rodri..." />
+        </div>
+        <div>
+          <label>Forma de pago (opcional)</label>
+          <input id="forma" placeholder="Efectivo / Débito / Transferencia" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button onclick="entregar()">Entregar (genera PDF)</button>
+      </div>
+    </form>
+
+    <p id="msg" class="muted" style="margin-top:12px"></p>
+  </div>
+</div>
+
+<script>
+/* === CONFIGURAR TU WEB APP AQUÍ === */
+const API_URL = 'https://script.google.com/macros/s/AKfycbwVmlfFxAycG_TBSGGdgmPafrdz1a5nemrGL2CJ-Tlcl4ZOiH96CLlkp-qsm5X8MXCO9g/exec';
+
+const $ = sel => document.querySelector(sel);
+const setMsg = (txt, ok=true) => { const m=$("#msg"); m.textContent=txt; m.className = ok ? "ok" : "err"; };
+
+async function subirFotoIfAny(inp){
+  if (!inp.files || !inp.files[0]) return '';
+  const fd = new FormData();
+  fd.append('action','upload_photo');
+  fd.append('file', inp.files[0]);
+  const r = await fetch(API_URL,{method:'POST',body:fd});
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error||'Error subiendo foto');
+  return j.fileId;
+}
+
+async function guardarRapido(){
+  try{
+    setMsg('Guardando...', true);
+    const fotoId = await subirFotoIfAny($('#fotoReceta')).catch(()=>'');
+
+    const p = new URLSearchParams();
+    p.set('action','save');
+    p.set('nro',  $('#nro').value.trim());
+    p.set('dni',  $('#dni').value.trim());
+    p.set('nombre',$('#nombre').value.trim());
+    p.set('cristal',$('#cristal').value.trim());
+    p.set('armazon',$('#armazon').value.trim());
+    p.set('otro', $('#otro').value.trim());
+    if (fotoId) p.set('fotoId', fotoId);
+
+    const r = await fetch(API_URL,{method:'POST',body:p});
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    setMsg('Guardado rápido ✔️ Nº '+j.nro+' (fila '+j.row+')', true);
+  }catch(err){
+    setMsg('Error: '+(err.message||err), false);
+  }
+}
+
+async function entregar(){
+  try{
+    setMsg('Generando PDF...', true);
+    const p = new URLSearchParams();
+    p.set('action','deliver');
+    p.set('nro', $('#nro').value.trim());
+    p.set('entrega', $('#quien').value.trim());
+    p.set('forma', $('#forma').value.trim());
+
+    const r = await fetch(API_URL,{method:'POST',body:p});
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    setMsg('Entrega registrada ✔️  PDF: '+j.pdfUrl, true);
+    // Si querés abrir el PDF: window.open(j.pdfUrl, '_blank');
+  }catch(err){
+    setMsg('Error: '+(err.message||err), false);
+  }
+}
+
+async function buscar(){
+  try{
+    setMsg('Buscando...', true);
+    const p = new URLSearchParams();
+    p.set('action','get');
+    p.set('nro', $('#nro').value.trim());
+    const r = await fetch(API_URL,{method:'POST',body:p});
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    const d = j.data || {};
+    $('#dni').value     = d['DNI'] || '';
+    $('#nombre').value  = d['NOMBRE'] || '';
+    $('#cristal').value = d['CRISTAL'] || '';
+    $('#armazon').value = d['ARMAZON'] || '';
+    $('#otro').value    = d['OTRO_CONCEPTO'] || '';
+    setMsg('Datos cargados ✔️ (estado: '+(d['ESTADO']||'')+')', true);
+  }catch(err){
+    setMsg('Error: '+(err.message||err), false);
+  }
+}
+</script>
+</body>
+</html>
