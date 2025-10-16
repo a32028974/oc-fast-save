@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Óptica Cristal · Entregar</title>
+<link rel="stylesheet" href="css/estilos.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<style>
+  .card{max-width:720px;margin:20px auto;padding:16px}
+  .kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px}
+  .kv b{color:#4a5568}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Entregar trabajo</h2>
+
+  <label>Número de trabajo</label>
+  <input id="nro" placeholder="51610185609" />
+
+  <div class="actions" style="margin:10px 0;">
+    <button id="btnBuscar">Buscar</button>
+  </div>
+
+  <div id="datos" class="kv" hidden></div>
+
+  <div class="actions" style="margin-top:10px">
+    <label>Quién entrega</label>
+    <input id="quien" placeholder="Juan / Jimena / Rodri…" />
+    <button id="btnEntregar" disabled>📄 Generar PDF y entregar</button>
+  </div>
+
+  <div id="msg" style="margin-top:10px;"></div>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbwVmlfFxAycG_TBSGGdgmPafrdz1a5nemrGL2CJ-Tlcl4ZOiH96CLlkp-qsm5X8MXCO9g/exec';
+const $ = s => document.querySelector(s);
+const setMsg = (t,ok=true)=>{ const m=$("#msg"); m.textContent=t; m.style.color=ok?'#2aa745':'#e66464'; };
+
+async function buscar(){
+  try{
+    setMsg('Buscando…',true);
+    const p = new URLSearchParams(); p.set('action','get'); p.set('nro',$('#nro').value.trim());
+    const r = await fetch(API_URL,{method:'POST',body:p}); const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+
+    const d = j.data;
+    const box = $('#datos'); box.innerHTML = `
+      <b>Paciente</b><div>${d['APELLIDO Y NOMBRE']||''}</div>
+      <b>Documento</b><div>${d['DOCUMENTO']||''}</div>
+      <b>Teléfono</b><div>${d['TELEFONO']||''}</div>
+      <b>Localidad</b><div>${d['LOCALIDAD']||''}</div>
+      <b>Cristal</b><div>${d['CRISTAL']||''}</div>
+      <b>Armazón</b><div>${d['DETALLE ARMAZON']||''} (Nº ${d['N ANTEOJO']||''})</div>
+      <b>Total</b><div>$ ${d['TOTAL']||'0'}</div>
+      <b>Seña</b><div>$ ${d['SEÑA']||'0'}</div>
+      <b>Saldo</b><div>$ ${d['SALDO']||'0'}</div>
+      <b>Estado</b><div>${d['ESTADO']||d['LISTO']||''}</div>
+    `;
+    box.hidden = false;
+    $('#btnEntregar').disabled = false;
+    setMsg('');
+  }catch(err){
+    setMsg('Error: '+(err.message||err), false);
+  }
+}
+
+async function entregar(){
+  try{
+    setMsg('Entregando…',true);
+    const p = new URLSearchParams();
+    p.set('action','deliver');
+    p.set('nro',$('#nro').value.trim());
+    p.set('quien',$('#quien').value.trim());
+    const r = await fetch(API_URL,{method:'POST',body:p});
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    setMsg('Entregado ✔️ PDF: '+ (j.pdfUrl||''), true);
+    Swal.fire({icon:'success',title:'PDF generado',html:`<a href="${j.pdfUrl}" target="_blank">Abrir PDF</a>`});
+  }catch(err){
+    setMsg('Error: '+(err.message||err), false);
+    Swal.fire({icon:'error',title:'Error',text:String(err)});
+  }
+}
+
+$('#btnBuscar').addEventListener('click', buscar);
+$('#btnEntregar').addEventListener('click', entregar);
+</script>
+</body>
+</html>
